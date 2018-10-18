@@ -13,7 +13,7 @@ import sys, csv, datetime
 
 # todo
 # possibly send out automated emails with the stats to all contributors
-#         send out automated emails to those who should
+#          send out automated emails to those who should
 
 # costs = {'internet': 47.19, 'slak':  287, 'bank': 12.09} # 1st 6 months discount, no insurance
 # costs = {'internet': 47.19, 'slak':  357, 'bank': 12.09} # no discount, no insurance
@@ -221,6 +221,7 @@ def bankstatement_stats(statments, balance, contributors, friends, share, latest
                                                                        non_paying_members,
                                                                        list(non_paying_friends))
     # list members who have not yet transfered in the running month
+    # todo send reminder to them?
     print >>sys.stderr, "[x] members who have not yet contributed this month\n\t", ', '.join(
         [c['name'] for c in contributors.values() if c['name'] not in members and c['active']])
 
