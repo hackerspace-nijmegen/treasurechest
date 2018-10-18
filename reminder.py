@@ -2,6 +2,10 @@
 
 import sys, csv, datetime
 
+# this script requires the following input files which for privacy
+# reasons are not included in the git repo:
+# contributors.csv  friends.csv  <bankaccountexport>.csv  latest-transactions.csv
+
 # bugs:
 #  - people who paid 1 year in advance before the opening of the bank
 #    account are listed as inactive, while their contribs are included
