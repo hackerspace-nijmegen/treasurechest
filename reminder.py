@@ -10,10 +10,6 @@ import sys, csv, datetime
 #  - people who paid 1 year in advance before the opening of the
 #    bank account are listed as inactive, while their contribs are
 #    included in the budget.
-#  - people who pay multiple months at once are counted only in the
-#    month where the transaction happend, and are reported missing the
-#    months afterwards despite being covered
-#  - the running month counts the number of contributors wrong
 
 # todo
 # possibly send out automated emails with the stats to all contributors
@@ -29,6 +25,7 @@ costs = {
 }
 
 balance = 0
+friends_fee = 7.5
 friends_fname = 'friends.csv'
 contributors_fname = 'contributors.csv'
 
@@ -40,14 +37,13 @@ def load_contributors(cf): # regular contributors
     with open(cf,'r') as fd:
         for line in fd.readlines():
             r = line.strip().split('\t')
+            rec = {'pledge': float(r[1]),
+                   'name': r[0].decode('utf8'),
+                   'email': r[2],
+                   'balance': 0,
+                   'active': False}
             for id in r[3:]:
-                res[id] = {
-                    'pledge': float(r[1]),
-                    'name': r[0].decode('utf8'),
-                    'email': r[2],
-                    'balance': 0,
-                    'active': False
-                }
+                res[id] = rec
                 tmp = id.split()
                 if len(tmp)>1: # skip fake acct ids
                     res2[tmp[1]] = id
@@ -62,7 +58,10 @@ def load_friends(ff): # people using our internet
         for line in fd.readlines():
             r = line.strip().split('\t')
             for id in r[1:]:
-                res[id] = r[0].decode('utf8')
+                res[id] = {
+                    'name': r[0].decode('utf8'),
+                    'balance': 0
+                }
                 tmp = id.split()
                 if len(tmp)>1: # skip fake acct ids
                     res2[tmp[1]] = id
@@ -112,6 +111,35 @@ def contributor_stats(contributors, costs):
     print >>sys.stderr, "\tadjusted avg:\t\t %.02f" % contrib
     return contrib
 
+def get_non_paying_members(contributors, share):
+    non_paying_members = []
+    seen = set()
+    for c in contributors.values():
+        if not c['active']: continue
+        # some members have multiple bank accounts, they would be checked multiple times
+        if c['name'] in seen: continue
+        seen.add(c['name'])
+
+        if c['pledge'] < share:
+            contrib = c['pledge']
+        else:
+            contrib = share
+
+        if c['balance']<contrib:
+            non_paying_members.append(c['name'])
+        else:
+            c['balance']-=contrib
+    return ', '.join(non_paying_members)
+
+def get_non_paying_friends(friends):
+    non_paying_friends = []
+    for f in friends.values():
+        if f['balance']<friends_fee and f['name'] not in non_paying_friends:
+            non_paying_friends.append(f['name'])
+        else:
+            f['balance']-=friends_fee
+    return non_paying_friends
+
 # this is the main "datamining" function, using all available information.
 def bankstatement_stats(statments, balance, contributors, friends, share, latest):
     print >>sys.stderr, "[i] stats for bank balance"
@@ -126,10 +154,10 @@ def bankstatement_stats(statments, balance, contributors, friends, share, latest
             month = rec['date'].month
         elif rec['date'].month!=month: # start a new month
             # calculate non-paying members
-            # todo handle members whose balance is > share
-            non_paying_members = ', '.join([x for x in (set(c['name'] for c in contributors.values() if c['active']) - set(members))])
+            non_paying_members = get_non_paying_members(contributors, share)
             # calculate non-paying friends
-            non_paying_friends = set(friends.values()) - set(supporters)
+            non_paying_friends = get_non_paying_friends(friends)
+
             print >>sys.stderr, "%15s\t%5.2f\t%5.2f\t%3d\t%3d\t%3d\t%s\t%s" % (rec['date'].strftime("%B %Y"),
                                                                                balance - prev,
                                                                                balance,
@@ -157,6 +185,7 @@ def bankstatement_stats(statments, balance, contributors, friends, share, latest
             friend = friends.get(rec['account'])
             if friend:
                 supporters.append(friend)
+                friend['balance']+=rec['value']
             else:
                 print >>sys.stderr, "[!] unknown contributor:", rec['name'], rec['account']
 
@@ -175,13 +204,15 @@ def bankstatement_stats(statments, balance, contributors, friends, share, latest
             friend = friends.get(friends_shortmap.get(rec['account']))
             if friend:
                 supporters.append(friend)
+                friend['balance']+=rec['value']
             else:
                 print >>sys.stderr, "[!] unknown contributor:", rec['text'], rec['account']
 
 
-    non_paying_members = ', '.join([x for x in (set(c['name'] for c in contributors.values() if c['active']) - set(members))])
+    # calculate non-paying members
+    non_paying_members = get_non_paying_members(contributors, share)
     # calculate non-paying friends
-    non_paying_friends = set(friends.values()) - set(supporters)
+    non_paying_friends = get_non_paying_friends(friends)
     print >>sys.stderr, "%15s\t%5.2f\t%5.2f\t%3d\t%3d\t%3d\t%s\t%s" % (rec['date'].strftime("%B %Y"),
                                                                        balance - prev,
                                                                        balance,
@@ -190,7 +221,6 @@ def bankstatement_stats(statments, balance, contributors, friends, share, latest
                                                                        len(supporters),
                                                                        non_paying_members,
                                                                        list(non_paying_friends))
-    print members
 
 totalcosts = sum(costs.values())
 print >>sys.stderr, "[-] total costs:\t\t %d" % totalcosts
