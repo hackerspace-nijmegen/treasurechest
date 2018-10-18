@@ -7,12 +7,17 @@ import sys, csv, datetime
 # contributors.csv  friends.csv  <bankaccountexport>.csv  latest-transactions.csv
 
 # bugs:
-#  - people who paid 1 year in advance before the opening of the bank
-#    account are listed as inactive, while their contribs are included
-#    in the budget.
+#  - people who paid 1 year in advance before the opening of the
+#    bank account are listed as inactive, while their contribs are
+#    included in the budget.
+#  - people who pay multiple months at once are counted only in the
+#    month where the transaction happend, and are reported missing the
+#    months afterwards despite being covered
+#  - the running month counts the number of contributors wrong
 
-# todo possibly send out automated emails with the stats to all contributors
-#               send out automated emails to those who should
+# todo
+# possibly send out automated emails with the stats to all contributors
+#         send out automated emails to those who should
 
 # costs = {'internet': 47.19, 'slak':  287, 'bank': 12.09} # 1st 6 months discount, no insurance
 # costs = {'internet': 47.19, 'slak':  357, 'bank': 12.09} # no discount, no insurance
