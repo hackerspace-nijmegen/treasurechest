@@ -190,14 +190,14 @@ def bankstatement_stats(statments, balance, contributors, friends, share, latest
                 print >>sys.stderr, "[!] unknown contributor:", rec['name'], rec['account']
 
     month += 1
-    members = []
+    members = set()
     supporters = []
     suppliers = []
     prev = balance
     for rec in latest:
         contributor = contributors.get(contrib_shortmap.get(rec['account']))
         if contributor:
-            members.append(contributor['name'])
+            members.add(contributor['name'])
             if not contributor['active']: contributor['active']=True
             contributor['balance']+=rec['value']
         else:
@@ -207,7 +207,6 @@ def bankstatement_stats(statments, balance, contributors, friends, share, latest
                 friend['balance']+=rec['value']
             else:
                 print >>sys.stderr, "[!] unknown contributor:", rec['text'], rec['account']
-
 
     # calculate non-paying members
     non_paying_members = get_non_paying_members(contributors, share)
@@ -221,6 +220,9 @@ def bankstatement_stats(statments, balance, contributors, friends, share, latest
                                                                        len(supporters),
                                                                        non_paying_members,
                                                                        list(non_paying_friends))
+    # list members who have not yet transfered in the running month
+    print >>sys.stderr, "[x] members who have not yet contributed this month\n\t", ', '.join(
+        [c['name'] for c in contributors.values() if c['name'] not in members and c['active']])
 
 totalcosts = sum(costs.values())
 print >>sys.stderr, "[-] total costs:\t\t %d" % totalcosts
