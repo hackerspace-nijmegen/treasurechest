@@ -160,6 +160,11 @@ def bankstatement_stats(statments, balance, contributors, friends, share, latest
             else:
                 print >>sys.stderr, "[!] unknown contributor:", rec['name'], rec['account']
 
+    month += 1
+    members = []
+    supporters = []
+    suppliers = []
+    prev = balance
     for rec in latest:
         contributor = contributors.get(contrib_shortmap.get(rec['account']))
         if contributor:
@@ -185,6 +190,7 @@ def bankstatement_stats(statments, balance, contributors, friends, share, latest
                                                                        len(supporters),
                                                                        non_paying_members,
                                                                        list(non_paying_friends))
+    print members
 
 totalcosts = sum(costs.values())
 print >>sys.stderr, "[-] total costs:\t\t %d" % totalcosts
