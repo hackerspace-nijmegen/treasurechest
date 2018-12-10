@@ -80,41 +80,29 @@ def load_bankstatement(sf):
                for row in reader]
         return res
 
-# this is the copy/paste of the transactions of the running month, with each record joined into 1 line
-# (originally the html copy paste puts each record into 3 lines)
-def load_latest(lf):
-    res = []
-    with open(lf, 'rb') as fd:
-        for line in fd.readlines():
-            toks = line.strip().split()
-            val = float(toks[-1].replace(",","."))
-            if val<=0: continue
-            rec = {
-                'date': datetime.datetime.strptime(toks[0], "%d-%m-%Y"),
-                'account': ''.join(toks[1:6]),
-                'value': val,
-                'text': ' '.join(toks[6:-1])
-            }
-            res.append(rec)
-    return res
+class Hashabledict(dict):
+    def __hash__(self):
+        return hash((frozenset(self), frozenset(self.itervalues())))
 
 def contributor_stats(contributors, costs):
     print >>sys.stderr, "[i] contributor stats"
-    print >>sys.stderr, "\ttotal contributors:\t %d" % len(contributors)
-    avg = (float(costs) / len(contributors))
+    totalcontributors=len({x['name'] for x in contributors.values()})
+    print >>sys.stderr, "\ttotal contributors:\t %d" % totalcontributors
+    avg = (float(costs) / totalcontributors)
     print >>sys.stderr, "\tavg needed:\t\t %.02f" % avg
     # adjust costs by people pledged less than avg
-    under = [x['pledge'] for x in contributors.values() if x['pledge']<avg]
+    under = [x['pledge'] for x in set(Hashabledict(d) for d in contributors.values()) if x['pledge']<avg]
     print >>sys.stderr, "\tcontributors under avg:\t %s" % under
     costs -= sum(under)
-    contrib = (float(costs) / (len(contributors) - len(under)))
+    contrib = (float(costs) / (totalcontributors - len(under)))
     print >>sys.stderr, "\tadjusted avg:\t\t %.02f" % contrib
     return contrib
 
 def get_non_paying_members(contributors, share):
     non_paying_members = []
     seen = set()
-    for c in contributors.values():
+    for c in sorted(contributors.values(),key=lambda x: x['name']):
+        #print >>sys.stderr, "%s (%f/%f) %s" % (c['name'], c['pledge'],c['balance'], 'A' if c['active'] else 'I')
         if not c['active']: continue
         # some members have multiple bank accounts, they would be checked multiple times
         if c['name'] in seen: continue
@@ -129,6 +117,7 @@ def get_non_paying_members(contributors, share):
             non_paying_members.append(c['name'])
         else:
             c['balance']-=contrib
+    print >>sys.stderr, ""
     return ', '.join(non_paying_members)
 
 def get_non_paying_friends(friends):
@@ -141,7 +130,7 @@ def get_non_paying_friends(friends):
     return non_paying_friends
 
 # this is the main "datamining" function, using all available information.
-def bankstatement_stats(statments, balance, contributors, friends, share, latest):
+def bankstatement_stats(statments, balance, contributors, friends, share):
     print >>sys.stderr, "[i] stats for bank balance"
     print >>sys.stderr, "           date change opening contrib suppliers supporters non-paying members & friends"
     month = None
@@ -187,43 +176,24 @@ def bankstatement_stats(statments, balance, contributors, friends, share, latest
                 supporters.append(friend)
                 friend['balance']+=rec['value']
             else:
-                print >>sys.stderr, "[!] unknown contributor:", rec['name'], rec['account']
+                print >>sys.stderr, "[!] unknown contributor:", rec['name'], rec['account'], rec['value']
 
-    month += 1
-    members = set()
-    supporters = []
-    suppliers = []
-    prev = balance
-    for rec in latest:
-        contributor = contributors.get(contrib_shortmap.get(rec['account']))
-        if contributor:
-            members.add(contributor['name'])
-            if not contributor['active']: contributor['active']=True
-            contributor['balance']+=rec['value']
-        else:
-            friend = friends.get(friends_shortmap.get(rec['account']))
-            if friend:
-                supporters.append(friend)
-                friend['balance']+=rec['value']
-            else:
-                print >>sys.stderr, "[!] unknown contributor:", rec['text'], rec['account']
 
     # calculate non-paying members
     non_paying_members = get_non_paying_members(contributors, share)
     # calculate non-paying friends
     non_paying_friends = get_non_paying_friends(friends)
+
+    rec['date']=rec['date'].replace(month=month+1, day=1)
     print >>sys.stderr, "%15s\t%5.2f\t%5.2f\t%3d\t%3d\t%3d\t%s\t%s" % (rec['date'].strftime("%B %Y"),
                                                                        balance - prev,
                                                                        balance,
-                                                                       len(members),
+                                                                       len(set(members)),
                                                                        len(suppliers),
                                                                        len(supporters),
                                                                        non_paying_members,
                                                                        list(non_paying_friends))
-    # list members who have not yet transfered in the running month
-    # todo send reminder to them?
-    print >>sys.stderr, "[x] members who have not yet contributed this month\n\t", ', '.join(
-        [c['name'] for c in contributors.values() if c['name'] not in members and c['active']])
+    #print sorted(members)
 
 totalcosts = sum(costs.values())
 print >>sys.stderr, "[-] total costs:\t\t %d" % totalcosts
@@ -232,5 +202,4 @@ contributors, contrib_shortmap = load_contributors(contributors_fname)
 share = contributor_stats(contributors, totalcosts)
 friends, friends_shortmap = load_friends(friends_fname)
 statements = load_bankstatement(sys.argv[1])
-latest = load_latest(sys.argv[2])
-bankstatement_stats(statements, balance, contributors, friends, share, latest)
+bankstatement_stats(statements, balance, contributors, friends, share)
